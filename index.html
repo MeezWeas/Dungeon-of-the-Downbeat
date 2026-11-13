@@ -63,7 +63,7 @@ input[type=range]{width:200px;accent-color:#ff4fa3}
 
 <div class="ov on" id="title">
   <h1><small>A RHYTHM &middot; GESTURE &middot; DUNGEON CRAWLER</small>DUNGEON OF<br>THE DOWNBEAT</h1>
-  <p>Eight floors. Eight tracks. Swipe your blade, draw your spells, and land every move <b style="color:#ffcf4a">on the beat</b>.</p>
+  <p>Eight floors. Eight bosses. Eight tracks. Swipe your blade, draw your spells, and land every move <b style="color:#ffcf4a">on the beat</b>.</p>
   <div><button class="btn pulse" id="startBtn">Descend</button><button class="btn alt" id="helpBtn">How to play</button></div>
   <p class="tiny">Headphones or speakers on. Best with a mouse and keyboard.</p>
 </div>
@@ -90,11 +90,14 @@ input[type=range]{width:200px;accent-color:#ff4fa3}
       <li><span>Mana only comes back from on-beat hits and parries.</span></li></ul></div>
     <div class="card"><h3>THE BEAT</h3><ul>
       <li><span><b>Release your stroke on the beat.</b> PERFECT = &times;2, GOOD = &times;1.3, off-beat = &times;0.6.</span></li>
-      <li><span>Every on-beat action (even a step) builds <b>GROOVE</b>, up to &times;2 more. Max it for <b>FEVER</b>.</span></li>
-      <li><span>Missing drops a groove tier. One action counts per beat.</span></li></ul></div>
+      <li><span>Every on-beat action builds <b>GROOVE</b>, up to &times;2 more. Max it for <b>FEVER</b>.</span></li>
+      <li><span>A missed attack drops a groove tier. <b>An off-beat step resets groove to zero</b> &mdash; turning is free. One action counts per beat.</span></li></ul></div>
     <div class="card"><h3>DEFENCE</h3><ul>
       <li><span>Enemies wind up for two beats and show an <b>arrow</b>. Swipe that direction as the ring closes to <b>PARRY</b>: no damage, a stagger and a riposte.</span></li>
       <li><span>A purple peak means unblockable: <b>Guard</b> it. A perfect guard absorbs everything.</span></li></ul></div>
+    <div class="card"><h3>BOSSES &amp; POWERUPS</h3><ul>
+      <li><span>Every floor has a <b>boss</b>. The stairs stay sealed until it falls.</span></li>
+      <li><span>Glowing gems last a set number of beats: <b style="color:#ff5a3c">Fury</b> (double damage), <b style="color:#ff4fa3">Unbreakable</b> (groove can't drop), <b style="color:#6ff0ff">Wide Beat</b> (bigger timing windows), <b style="color:#a98bff">Mana Surge</b> (free spells), <b style="color:#ffcf4a">Aegis</b> (half damage taken).</span></li></ul></div>
   </div>
   <button class="btn" id="helpBack">Back</button>
 </div>
@@ -106,7 +109,7 @@ input[type=range]{width:200px;accent-color:#ff4fa3}
   <div class="row"><label for="sv">Effects</label><input type="range" id="sv" min="0" max="100"><output>&nbsp;</output></div>
   <div class="row"><label for="off">Beat offset</label><input type="range" id="off" min="-200" max="200" step="5"><output id="offVal">0 ms</output></div>
   <p class="tiny" style="max-width:56ch">If your hits keep reading LATE (Bluetooth audio usually does this), raise the offset. If they read EARLY, lower it.</p>
-  <div><button class="btn" id="resumeBtn">Resume</button><button class="btn alt" id="quitBtn">Restart run</button></div>
+  <div><button class="btn" id="resumeBtn">Resume</button><button class="btn alt" id="helpBtn2">How to play</button><button class="btn alt" id="quitBtn">Restart run</button></div>
 </div>
 
 <div class="ov" id="boon">
@@ -533,7 +536,7 @@ const $ = id => document.getElementById(id);
 const cv = $('view'), hud = $('hud');
 const vctx = cv.getContext('2d'), h = hud.getContext('2d');
 let RW = 320, RH = 180, HW = 0, HH = 0, DPR = 1, img, buf32, zbuf;
-const TS = 32, LV = 16, EXIT = 9;
+const TS = 32, LV = 16, EXIT = 9, LOCK = 8;
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 const FONT = 'ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace';
 
@@ -622,13 +625,20 @@ function buildTextures(ti) {
     const v = (0.25 + 0.75 * (1 - t)) * stripe * (0.6 + 0.4 * edge);
     return [accent[0] * v, accent[1] * v, accent[2] * v, 1];
   };
+  const lock = (x, y) => {
+    const arch = Math.hypot(x - 15.5, Math.max(0, 14 - y)) < 11.5 && x > 4 && x < 27 && y > 3;
+    if (!arch) return block(x, y);
+    if (x % 5 === 3 || y === 12 || y === 22) return [86, 84, 96];
+    const v = 0.5 + 0.5 * (1 - Math.abs(x - 15.5) / 12);
+    return [70 * v + 20, 8, 22 * v, 1];
+  };
   const floor = (x, y) => {
     const bx = x & 15, by = y & 15, id = (x >> 4) * 3 + (y >> 4) * 5 + 40;
     if (bx === 0 || by === 0) return mul(fc, 0.4);
     return mul(fc, 0.72 + hash(id) * 0.3 + (rnd() - 0.5) * 0.14);
   };
   const ceil = (x, y) => mul(cc, 0.7 + (rnd() - 0.5) * 0.3 + (((x >> 3) + (y >> 3)) & 1) * 0.12);
-  TEX = { walls: [gen(brick), gen(block), gen(torch)], exit: gen(door), floor: gen(floor), ceil: gen(ceil), th, accent, amb, wallCss: css(hsl(th.h, th.s, 0.5)) };
+  TEX = { walls: [gen(brick), gen(block), gen(torch)], exit: gen(door), lock: gen(lock), floor: gen(floor), ceil: gen(ceil), th, accent, amb, wallCss: css(hsl(th.h, th.s, 0.5)) };
 }
 
 // ---------- sprites ----------
@@ -637,7 +647,7 @@ function mkSprite(name, pal, rows) {
   const n = 16, px = new Uint32Array(n * n);
   rows.forEach((r, y) => { for (let x = 0; x < n; x++) { const p = pal[r[x]]; if (p) px[y * n + x] = rgb(p[0], p[1], p[2]); } });
   const white = new Uint32Array(n * n); for (let i = 0; i < px.length; i++) if (px[i]) white[i] = 0xffffffff;
-  SPR[name] = { n, white, shades: makeShades(px, [0, 0, 0]) };
+  SPR[name] = { n, white, rows, shades: makeShades(px, [0, 0, 0]) };
 }
 mkSprite('slime', { G: [20, 90, 40], g: [70, 200, 90], h: [190, 255, 200], w: [255, 255, 255], k: [10, 30, 15] }, [
   '................', '................', '................', '................',
@@ -677,6 +687,29 @@ const potionRows = [
 mkSprite('hp', { k: [120, 80, 50], w: [220, 230, 240], c: [230, 40, 70], h: [255, 170, 190] }, potionRows);
 mkSprite('mp', { k: [120, 80, 50], w: [220, 230, 240], c: [50, 110, 255], h: [170, 210, 255] }, potionRows);
 
+const recolor = (name, base, pal) => mkSprite(name, pal, SPR[base].rows);
+recolor('emberwing', 'bat', { k: [70, 22, 8], p: [245, 125, 40], r: [255, 255, 130], w: [255, 255, 255] });
+recolor('wraith', 'ghost', { c: [190, 125, 255], d: [115, 60, 200], k: [20, 6, 40], w: [255, 235, 255] });
+recolor('kingslime', 'slime', { G: [125, 70, 10], g: [255, 200, 60], h: [255, 246, 190], w: [255, 255, 255], k: [50, 20, 0] });
+recolor('rattler', 'skel', { w: [255, 240, 222], s: [205, 62, 62], k: [30, 6, 10], r: [255, 225, 60] });
+recolor('maestro', 'ghost', { c: [250, 250, 255], d: [255, 120, 200], k: [60, 0, 60], w: [255, 255, 255] });
+recolor('sentinel', 'knight', { s: [190, 150, 70], S: [250, 222, 125], k: [20, 14, 6], r: [90, 255, 255], y: [90, 220, 255], w: [235, 250, 255], d: [112, 82, 40] });
+recolor('magmamaw', 'slime', { G: [125, 20, 8], g: [255, 92, 30], h: [255, 232, 120], w: [255, 255, 170], k: [45, 0, 0] });
+const gemRows = [
+  '................', '................', '................', '................',
+  '................', '.......ww.......', '......wcch......', '.....wcccch.....',
+  '....wccchccd....', '....wcchcccd....', '.....dccccd.....', '......dccd......',
+  '.......dd.......', '................', '................', '................'];
+const POWERS = {
+  fury: { name: 'FURY', desc: 'double damage', col: '#ff5a3c', rgb: [255, 80, 50], dur: 32 },
+  groove: { name: 'UNBREAKABLE', desc: 'groove cannot drop', col: '#ff4fa3', rgb: [255, 80, 165], dur: 32 },
+  wide: { name: 'WIDE BEAT', desc: 'timing windows +50%', col: '#6ff0ff', rgb: [90, 235, 255], dur: 32 },
+  surge: { name: 'MANA SURGE', desc: 'spells cost nothing', col: '#a98bff', rgb: [160, 125, 255], dur: 24 },
+  aegis: { name: 'AEGIS', desc: 'half damage taken', col: '#ffcf4a', rgb: [255, 207, 74], dur: 32 }
+};
+for (const k in POWERS) { const c = POWERS[k].rgb; mkSprite(k, { w: [255, 255, 255], c, h: c.map(v => Math.min(255, v + 90)), d: c.map(v => v * 0.5 | 0) }, gemRows); }
+const POWER_KEYS = Object.keys(POWERS);
+
 // ---------- data ----------
 const ETYPES = {
   slime: { name: 'Slime', spr: 'slime', hp: 9, dmg: 2, period: 4, tele: 2, move: 2, dirs: 'D', weak: 'cleave', res: 'thrust', scale: 0.46, score: 10 },
@@ -684,8 +717,16 @@ const ETYPES = {
   skel: { name: 'Skeleton', spr: 'skel', hp: 15, dmg: 3, period: 4, tele: 2, move: 2, dirs: 'LRD', weak: 'cleave', res: 'slash', scale: 0.62, score: 25 },
   ghost: { name: 'Phantom', spr: 'ghost', hp: 13, dmg: 3, period: 4, tele: 2, move: 2, dirs: 'LRG', weak: 'spell', res: 'phys', scale: 0.58, fly: 0.12, score: 35 },
   knight: { name: 'Iron Knight', spr: 'knight', hp: 28, dmg: 5, period: 4, tele: 2, move: 3, dirs: 'LRD', weak: 'thrust', res: 'slash', scale: 0.68, score: 50 },
-  lich: { name: 'THE LICH LORD', spr: 'lich', hp: 150, dmg: 5, period: 3, tele: 2, move: 2, dirs: 'LRUDG', weak: null, res: null, scale: 0.8, fly: 0.04, score: 500, boss: true }
+  emberwing: { name: 'EMBERWING', spr: 'emberwing', hp: 38, dmg: 2, period: 3, tele: 2, move: 1, dirs: 'LR', weak: 'slash', res: null, scale: 0.8, fly: 0.25, score: 120, boss: true },
+  wraith: { name: 'THE CRYPT WRAITH', spr: 'wraith', hp: 46, dmg: 3, period: 3, tele: 2, move: 2, dirs: 'LRG', weak: 'spell', res: 'phys', scale: 0.8, fly: 0.1, score: 160, boss: true },
+  kingslime: { name: 'KING SLIME', spr: 'kingslime', hp: 78, dmg: 3, period: 3, tele: 2, move: 2, dirs: 'DU', weak: 'cleave', res: 'thrust', scale: 0.82, score: 200, boss: true, summons: ['slime'] },
+  rattler: { name: 'THE BONE RATTLER', spr: 'rattler', hp: 92, dmg: 4, period: 3, tele: 2, move: 2, dirs: 'LRD', weak: 'cleave', res: 'slash', scale: 0.84, score: 240, boss: true, summons: ['skel', 'bat'] },
+  maestro: { name: 'PHANTOM MAESTRO', spr: 'maestro', hp: 96, dmg: 4, period: 3, tele: 2, move: 2, dirs: 'LRUG', weak: 'spell', res: 'phys', scale: 0.84, fly: 0.1, score: 280, boss: true, summons: ['ghost'] },
+  sentinel: { name: 'CLOCKWORK SENTINEL', spr: 'sentinel', hp: 130, dmg: 5, period: 3, tele: 2, move: 2, dirs: 'LRDG', weak: 'thrust', res: 'slash', scale: 0.86, score: 320, boss: true },
+  magmamaw: { name: 'THE MOLTEN MAW', spr: 'magmamaw', hp: 150, dmg: 6, period: 3, tele: 2, move: 2, dirs: 'LRUD', weak: 'thrust', res: 'spell', scale: 0.88, score: 360, boss: true, summons: ['slime', 'bat'] },
+  lich: { name: 'THE LICH LORD', spr: 'lich', hp: 230, dmg: 5, period: 3, tele: 2, move: 2, dirs: 'LRUDG', weak: null, res: null, scale: 0.8, fly: 0.04, score: 500, boss: true, summons: ['bat', 'skel'] }
 };
+const BOSSES = ['emberwing', 'wraith', 'kingslime', 'rattler', 'maestro', 'sentinel', 'magmamaw', 'lich'];
 const ROSTER = [['slime'], ['slime', 'slime', 'bat'], ['slime', 'bat', 'skel'], ['bat', 'skel', 'skel', 'ghost'],
   ['skel', 'ghost', 'ghost', 'bat'], ['skel', 'ghost', 'knight'], ['ghost', 'knight', 'knight', 'bat', 'skel'], ['bat', 'skel', 'ghost']];
 const KIND_LABEL = { slash: '↔ slash', cleave: '↓ cleave', thrust: '↑ thrust', spell: '✦ spells', phys: 'blades' };
@@ -710,7 +751,7 @@ const R = {};
 const P = {};
 const G = { mode: 'title', floor: 1, map: null, MW: 0, MH: 0, seen: null, dist: null, enemies: [], items: [], floats: [], trail: null,
   combo: 0, idle: 0, lastBeat: -1, lastAct: -99, bp: 0, guard: null, judge: null, banner: null, hurt: 0, flash: null, zap: null,
-  stats: null, lastMove: null, queued: null, exit: null, winT: 0, showHelp: true };
+  stats: null, pow: {}, boss: null, lastMove: null, queued: null, exit: null, winT: 0, showHelp: true };
 let SET = { mv: 0.8, sv: 0.9, off: 0 };
 try { const s = JSON.parse(localStorage.getItem('dotd-set') || 'null'); if (s) SET = Object.assign(SET, s); } catch (e) {}
 function saveSet() { try { localStorage.setItem('dotd-set', JSON.stringify(SET)); } catch (e) {} }
@@ -718,8 +759,9 @@ function saveSet() { try { localStorage.setItem('dotd-set', JSON.stringify(SET))
 function resetPlayer() {
   Object.assign(P, { x: 1, y: 1, fx: 1, fy: 1, mt: 1, dir: 1, ang: 0, af: 0, at: 0, tt: 1, hp: 20, maxHp: 20, mp: 4, maxMp: 10, atk: 4, window: 1, spellPow: 1, boons: {}, taken: {} });
   G.stats = { kills: 0, perfect: 0, good: 0, miss: 0, maxCombo: 0, score: 0, parries: 0 };
-  G.combo = 0;
+  G.combo = 0; G.pow = {};
 }
+function tw() { return P.window * (G.pow.wide ? 1.5 : 1); }
 function resetBeat() {
   G.lastBeat = -1; G.lastAct = -99; G.guard = null; G.idle = 0;
   for (const e of G.enemies) { e.attack = null; e.cool = 2; }
@@ -728,9 +770,9 @@ function resetBeat() {
 // ---------- map generation ----------
 function genFloor(floor, seed) {
   const rnd = mulberry(seed), ri = (a, b) => a + (rnd() * (b - a + 1) | 0);
-  const MW = 21 + Math.min(5, floor >> 1) * 2, MH = MW;
+  const MW = Math.round((21 + Math.min(5, floor >> 1) * 2) * 1.14), MH = MW;
   const map = new Uint8Array(MW * MH).fill(1), rooms = [];
-  const want = 6 + (floor >> 1);
+  const want = Math.round((6 + (floor >> 1)) * 1.3);
   for (let t = 0; t < 300 && rooms.length < want; t++) {
     const w = ri(3, 6), hh = ri(3, 6), x = ri(1, MW - w - 1), y = ri(1, MH - hh - 1);
     if (rooms.some(r => x <= r.x + r.w + 1 && x + w + 1 >= r.x && y <= r.y + r.h + 1 && y + hh + 1 >= r.y)) continue;
@@ -761,23 +803,22 @@ function genFloor(floor, seed) {
   G.enemies = []; G.items = []; G.exit = null;
   const occupied = (x, y) => (x === P.x && y === P.y) || G.enemies.some(e => e.x === x && e.y === y) || G.items.some(i => i.x === x && i.y === y);
   const freeIn = (r) => { for (let t = 0; t < 30; t++) { const x = ri(r.x, r.x + r.w - 1), y = ri(r.y, r.y + r.h - 1); if (!occupied(x, y)) return { x, y }; } return null; };
-  const boss = floor >= 8;
-  if (!boss) {
+  if (floor < 8) {
     const c = [[far.cx, far.y - 1], [far.cx, far.y + far.h], [far.x - 1, far.cy], [far.x + far.w, far.cy]];
     for (let i = far.x; i < far.x + far.w; i++) { c.push([i, far.y - 1], [i, far.y + far.h]); }
-    for (const [x, y] of c) if (map[y * MW + x] > 0 && x > 0 && y > 0 && x < MW - 1 && y < MH - 1) { map[y * MW + x] = EXIT; G.exit = { x, y }; break; }
-  } else {
-    spawn('lich', far.cx, far.cy, floor);
+    for (const [x, y] of c) if (map[y * MW + x] > 0 && x > 0 && y > 0 && x < MW - 1 && y < MH - 1) { map[y * MW + x] = LOCK; G.exit = { x, y, locked: true }; break; }
   }
-  const roster = ROSTER[Math.min(ROSTER.length, floor) - 1], n = boss ? 4 : 3 + floor;
-  for (let i = 0; i < n; i++) {
-    const r = rooms[1 + (i % (rooms.length - 1))], p = freeIn(r);
-    if (p && G.dist[p.y * MW + p.x] > 3) spawn(roster[ri(0, roster.length - 1)], p.x, p.y, floor);
+  G.boss = spawn(BOSSES[floor - 1], far.cx, far.cy, floor);
+  const roster = ROSTER[Math.min(ROSTER.length, floor) - 1], n = Math.ceil((floor >= 8 ? 4 : 3 + floor) * 1.3);
+  for (let t = 0, placed = 0; t < n * 10 && placed < n; t++) {
+    const r = rooms[1 + (t % (rooms.length - 1))], p = freeIn(r);
+    if (p && G.dist[p.y * MW + p.x] > 3) { spawn(roster[ri(0, roster.length - 1)], p.x, p.y, floor); placed++; }
   }
-  for (let i = 0; i < 4; i++) { const r = rooms[ri(1, rooms.length - 1)], p = freeIn(r); if (p) G.items.push({ x: p.x, y: p.y, kind: i % 2 ? 'mp' : 'hp' }); }
+  for (let i = 0; i < 5; i++) { const r = rooms[ri(1, rooms.length - 1)], p = freeIn(r); if (p) G.items.push({ x: p.x, y: p.y, kind: i % 2 ? 'mp' : 'hp' }); }
+  for (let i = 0; i < 2; i++) { const r = rooms[ri(1, rooms.length - 1)], p = freeIn(r); if (p) G.items.push({ x: p.x, y: p.y, kind: POWER_KEYS[ri(0, POWER_KEYS.length - 1)] }); }
 }
 function spawn(type, x, y, floor) {
-  const t = ETYPES[type], hp = Math.round(t.hp * (1 + 0.1 * (floor - 1)));
+  const t = ETYPES[type], hp = t.boss ? t.hp : Math.round(t.hp * (1 + 0.1 * (floor - 1)));
   const e = { t, x, y, rx: x + 0.5, ry: y + 0.5, hp, maxHp: hp, dmg: t.dmg + (floor > 5 && !t.boss ? 1 : 0), cool: 2, stun: 0, attack: null, awake: false, flash: 0, lunge: 0, phase: Math.random() * 4 | 0, scr: null, summon: 0 };
   G.enemies.push(e); return e;
 }
@@ -798,7 +839,7 @@ function gmult() { return 1 + 0.25 * tier(); }
 function judge() {
   const bp = Music.ready ? Music.beatPos() : Math.round(G.bp);
   let n = Math.round(bp), off = bp - n;
-  const a = Math.abs(off), wp = 0.12 * P.window, wg = 0.25 * P.window;
+  const a = Math.abs(off), wp = 0.12 * tw(), wg = 0.25 * tw();
   let q = a <= wp ? 2 : a <= wg ? 1 : 0, dup = false;
   if (q === 0 && P.boons.sync) { const hb = Math.floor(bp) + 0.5; if (Math.abs(bp - hb) <= wp) { q = 1; n = hb; off = bp - hb; } }
   if (q > 0 && n === G.lastAct) { q = 0; dup = true; }
@@ -815,9 +856,16 @@ function grooveHit(q, mana) {
 }
 function grooveDrop(countMiss) {
   if (countMiss) G.stats.miss++;
+  if (G.pow.groove) return;
   const t = tier();
   if (G.combo > 0) { G.combo = Math.max(0, t - 1) * per(); if (t > 0) Music.sfx.tier(false); }
   Music.setFever(tier() === 4);
+}
+function grooveReset() {
+  G.stats.miss++;
+  if (G.pow.groove) return;
+  if (tier() > 0) Music.sfx.tier(false);
+  G.combo = 0; Music.setFever(false);
 }
 function setJudge(j, label) {
   const txt = label || (j.dup ? 'TOO FAST' : j.q === 2 ? 'PERFECT' : j.q === 1 ? 'GOOD' : (j.off < 0 ? 'EARLY' : 'LATE'));
@@ -830,10 +878,11 @@ function enemyScreen(e) { return e && e.scr && e.scr.vis ? { x: e.scr.x * HW / R
 function resistMult(e, kind, spell) {
   const t = e.t;
   if (t.weak === kind || (t.weak === 'spell' && spell)) return 1.5;
-  if (t.res === kind || (t.res === 'phys' && !spell)) return 0.5;
+  if (t.res === kind || (t.res === 'phys' && !spell) || (t.res === 'spell' && spell)) return 0.5;
   return 1;
 }
 function damageEnemy(e, dmg, col, tag) {
+  if (G.pow.fury) dmg *= 2;
   dmg = Math.max(1, Math.round(dmg));
   e.hp -= dmg; e.flash = 0.14; e.awake = true;
   const s = enemyScreen(e);
@@ -843,8 +892,17 @@ function damageEnemy(e, dmg, col, tag) {
     G.stats.kills++; G.stats.score += Math.round(e.t.score * gmult());
     Music.sfx.kill();
     float(s.x, s.y - 30, 'SLAIN', '#ff4fa3', 1.2);
-    if (e.t.boss) { G.winT = 1.6; G.enemies.length = 0; }
-    else if (Math.random() < 0.22) G.items.push({ x: e.x, y: e.y, kind: Math.random() < 0.5 ? 'hp' : 'mp' });
+    if (e.t.boss) {
+      G.boss = null; G.flash = { col: [255, 255, 255], t: 0.3 }; cam.shake = 0.4;
+      if (G.floor >= 8) { G.winT = 1.6; G.enemies.length = 0; }
+      else {
+        if (G.exit) { G.exit.locked = false; G.map[G.exit.y * G.MW + G.exit.x] = EXIT; G.seen[G.exit.y * G.MW + G.exit.x] = 1; }
+        G.banner = { txt: e.t.name + ' FALLS', sub: 'The stairs are unsealed \u2014 find the glowing doorway', t: 0 };
+        Music.sfx.win();
+        G.items.push({ x: e.x, y: e.y, kind: POWER_KEYS[Math.random() * POWER_KEYS.length | 0] });
+      }
+    }
+    else if (!G.items.some(i => i.x === e.x && i.y === e.y)) { const r = Math.random(); if (r < 0.22) G.items.push({ x: e.x, y: e.y, kind: r < 0.11 ? 'hp' : 'mp' }); else if (r < 0.3) G.items.push({ x: e.x, y: e.y, kind: POWER_KEYS[Math.random() * POWER_KEYS.length | 0] }); }
   }
 }
 function hurtPlayer(d, unblock) {
@@ -854,10 +912,11 @@ function hurtPlayer(d, unblock) {
     if (d < 0.6) { Music.sfx.block(); float(HW / 2, HH * 0.55, g.pow >= 1 ? 'PERFECT GUARD' : 'BLOCKED', '#6ff0ff', 1.3); if (g.pow >= 1) P.mp = Math.min(P.maxMp, P.mp + 1); cam.shake = 0.1; return; }
     Music.sfx.block();
   }
+  if (G.pow.aegis) d *= 0.5;
   d = Math.max(1, Math.round(d));
   P.hp -= d; G.hurt = 1; cam.shake = 0.3; Music.sfx.hurt();
   float(HW / 2, HH * 0.6, '-' + d, '#ff4060', 1.6);
-  G.combo = tier() * per();
+  if (!G.pow.groove) G.combo = tier() * per();
   if (P.hp <= 0) { P.hp = 0; die(); }
 }
 function strike(kind, base, j, front) {
@@ -919,7 +978,8 @@ function onGesture(g) {
     return;
   }
   const sp = SPELLS[g.type]; if (!sp) return;
-  if (P.mp < sp.cost) { Music.sfx.fizzle(); G.judge = { txt: 'NO MANA', col: '#5a8cff', t: 0, q: 0 }; return; }
+  const cost = G.pow.surge ? 0 : sp.cost;
+  if (P.mp < cost) { Music.sfx.fizzle(); G.judge = { txt: 'NO MANA', col: '#5a8cff', t: 0, q: 0 }; return; }
   const jm = [0.6, 1.3, 2][j.q], pw = jm * P.spellPow, gm = gmult();
   let cast = false;
   if (g.type === 'fire') {
@@ -942,7 +1002,7 @@ function onGesture(g) {
     float(HW / 2, HH * 0.6, '+' + amt + ' HP', '#6dff9a', 1.5); cast = true;
   }
   if (cast) {
-    P.mp -= sp.cost; if (j.q === 2) P.mp = Math.min(P.maxMp, P.mp + 1);
+    P.mp -= cost; if (j.q === 2) P.mp = Math.min(P.maxMp, P.mp + 1);
     G.lastMove = g.type;
     if (j.q > 0) { G.lastAct = j.beat; grooveHit(j.q, false); } else grooveDrop(true);
     setJudge(j, sp.name + (j.q === 2 ? ' ×2' : j.q === 1 ? ' ×1.3' : ' (off-beat)'));
@@ -952,6 +1012,7 @@ function onGesture(g) {
 // ---------- beat tick ----------
 function onBeat(b) {
   G.idle++;
+  for (const k in G.pow) if (--G.pow[k] <= 0) { delete G.pow[k]; float(HW / 2, HH * 0.7, POWERS[k].name + ' fades', '#8a8498', 1); }
   if (G.idle > 8 && G.combo > 0 && !P.boons.steady) { grooveDrop(false); G.idle = 0; }
   computeDist();
   const MW = G.MW;
@@ -974,11 +1035,11 @@ function onBeat(b) {
       for (let k = 0; k < 4; k++) { const nx = e.x + DX[k], ny = e.y + DY[k], nd = G.dist[ny * MW + nx]; if (nd > 0 && nd < bd && !enemyAt(nx, ny)) { bd = nd; best = k; } }
       if (best >= 0) { e.x += DX[best]; e.y += DY[best]; }
     }
-    if (e.t.boss && e.awake) {
+    if (e.t.summons && e.awake) {
       e.summon++;
-      if (e.summon >= 20 && G.enemies.length < 4) {
+      if (e.summon >= 20 && G.enemies.filter(o => { const dd = G.dist[o.y * MW + o.x]; return dd >= 0 && dd <= 6; }).length < 3) {
         e.summon = 0;
-        for (let k = 0; k < 4; k++) { const nx = e.x + DX[k], ny = e.y + DY[k]; if (G.map[ny * MW + nx] === 0 && !enemyAt(nx, ny) && !(nx === P.x && ny === P.y)) { const m = spawn(Math.random() < 0.5 ? 'bat' : 'skel', nx, ny, G.floor); m.awake = true; float(HW / 2, HH * 0.3, 'THE LICH SUMMONS!', '#c070ff', 1.2); break; } }
+        for (let k = 0; k < 4; k++) { const nx = e.x + DX[k], ny = e.y + DY[k]; if (G.map[ny * MW + nx] === 0 && !enemyAt(nx, ny) && !(nx === P.x && ny === P.y)) { const sm = e.t.summons, m = spawn(sm[Math.random() * sm.length | 0], nx, ny, G.floor); m.awake = true; float(HW / 2, HH * 0.3, e.t.name + ' SUMMONS!', '#c070ff', 1.2); break; } }
       }
     }
   }
@@ -996,15 +1057,18 @@ function command(c) {
   const k = (P.dir + { f: 0, r: 1, b: 2, l: 3 }[c]) % 4;
   const nx = P.x + DX[k], ny = P.y + DY[k], t = G.map[ny * G.MW + nx];
   if (t === EXIT) { floorCleared(); return; }
+  if (t === LOCK) { Music.sfx.bump(); cam.shake = Math.max(cam.shake, 0.08); G.judge = { txt: 'SEALED \u2014 SLAY THE BOSS', col: '#ff4060', t: 0, q: 0 }; return; }
   if (t > 0 || enemyAt(nx, ny)) { Music.sfx.bump(); cam.shake = Math.max(cam.shake, 0.08); return; }
   P.fx = P.x; P.fy = P.y; P.x = nx; P.y = ny; P.mt = 0; Music.sfx.step();
   const j = judge();
   if (j.q > 0) { G.lastAct = j.beat; grooveHit(j.q, false); G.stepFx = { t: 0, q: j.q }; }
+  else { const had = G.combo > 0 && !G.pow.groove; grooveReset(); if (had) G.judge = { txt: 'OFF-BEAT STEP \u2014 GROOVE LOST', col: '#ff4060', t: 0, q: 0 }; }
   for (let i = G.items.length - 1; i >= 0; i--) {
     const it = G.items[i];
     if (it.x === nx && it.y === ny) {
       if (it.kind === 'hp') { if (P.hp >= P.maxHp) continue; P.hp = Math.min(P.maxHp, P.hp + 7); float(HW / 2, HH * 0.6, '+7 HP', '#6dff9a', 1.3); }
-      else { if (P.mp >= P.maxMp) continue; P.mp = Math.min(P.maxMp, P.mp + 5); float(HW / 2, HH * 0.6, '+5 MANA', '#6aa0ff', 1.3); }
+      else if (it.kind === 'mp') { if (P.mp >= P.maxMp) continue; P.mp = Math.min(P.maxMp, P.mp + 5); float(HW / 2, HH * 0.6, '+5 MANA', '#6aa0ff', 1.3); }
+      else { const pw = POWERS[it.kind]; G.pow[it.kind] = pw.dur; Music.sfx.tier(true); G.flash = { col: pw.rgb, t: 0.3 }; float(HW / 2, HH * 0.52, pw.name + '!', pw.col, 2); float(HW / 2, HH * 0.6, pw.desc + ' \u00b7 ' + pw.dur + ' beats', '#fff', 1.1); }
       G.items.splice(i, 1); Music.sfx.pickup();
     }
   }
@@ -1019,7 +1083,7 @@ function startFloor() {
   G.floats = []; G.trail = null; G.judge = null; G.hurt = 0; G.queued = null; G.winT = 0;
   if (Music.ready) { Music.resume(); Music.play(G.floor - 1); }
   resetBeat();
-  G.banner = { txt: G.floor >= 8 ? 'FLOOR 8 — THE LICH\'S DANCEFLOOR' : 'FLOOR ' + G.floor, sub: '♪ ' + SONGS[G.floor - 1].name + ' · ' + SONGS[G.floor - 1].bpm + ' BPM', t: 0 };
+  G.banner = { txt: G.floor >= 8 ? 'FLOOR 8 — THE LICH\'S DANCEFLOOR' : 'FLOOR ' + G.floor, sub: '\u266a ' + SONGS[G.floor - 1].name + ' \u00b7 ' + SONGS[G.floor - 1].bpm + ' BPM \u00b7 BOSS: ' + G.boss.t.name, t: 0 };
   G.mode = 'play'; show(null);
 }
 function newGame() { resetPlayer(); G.floor = 1; Music.setFever(false); startFloor(); }
@@ -1073,7 +1137,7 @@ function update(dt) {
   if (P.mt < 1) P.mt = Math.min(1, P.mt + dt / 0.12);
   if (P.tt < 1) { P.tt = Math.min(1, P.tt + dt / 0.11); P.ang = P.af + (P.at - P.af) * P.tt; if (P.tt >= 1) { P.ang = P.at = P.af = (P.dir - 1) * Math.PI / 2; } }
   if (!busy() && G.queued) { const c = G.queued; G.queued = null; command(c); }
-  const wg = 0.25 * P.window + 0.03;
+  const wg = 0.25 * tw() + 0.03;
   for (const e of G.enemies.slice()) {
     let tx = e.x + 0.5, ty = e.y + 0.5;
     if (e.lunge > 0) { e.lunge = Math.max(0, e.lunge - dt * 5); tx += (P.x - e.x) * 0.3 * e.lunge; ty += (P.y - e.y) * 0.3 * e.lunge; }
@@ -1146,7 +1210,7 @@ function render3D() {
     let tx = (wx * TS) | 0; if ((side === 0 && rdx < 0) || (side === 1 && rdy > 0)) tx = TS - 1 - tx;
     let lv = lightLevel(perp); if (side) lv = lv * 0.72 | 0;
     let shades;
-    if (tile === EXIT) { shades = TEX.exit; lv = Math.max(lv, 9); } else { shades = TEX.walls[(tile - 1) % 3]; if (tile === 3) lv = Math.min(15, lv + 3); }
+    if (tile === EXIT) { shades = TEX.exit; lv = Math.max(lv, 9); } else if (tile === LOCK) { shades = TEX.lock; lv = Math.max(lv, 6); } else { shades = TEX.walls[(tile - 1) % 3]; if (tile === 3) lv = Math.min(15, lv + 3); }
     const tex = shades[lv];
     const y0 = Math.max(0, Math.ceil(top)), y1 = Math.min(H, Math.ceil(top + lineH));
     const tstep = TS / lineH; let tpos = (y0 - top) * tstep;
@@ -1163,7 +1227,8 @@ function render3D() {
       const e = s.o, t = e.t, wob = e.stun > 0 ? Math.sin(performance.now() / 40) * 0.03 : 0;
       const sq = 1 + 0.05 * Math.exp(-(G.bp - Math.floor(G.bp)) * 5);
       e.scr = drawSprite(s.x + wob, s.y, SPR[t.spr], t.scale * sq * (1 + e.lunge * 0.25), (t.fly || 0) + (t.fly ? bob * 0.02 : 0), e.flash > 0, e.attack ? 9 : 2);
-    } else drawSprite(s.x, s.y, SPR[s.o.kind], 0.7, 0, false, 5);
+    } else if (POWERS[s.o.kind]) drawSprite(s.x, s.y, SPR[s.o.kind], 0.7, 0.2 + bob * 0.03, false, 11);
+    else drawSprite(s.x, s.y, SPR[s.o.kind], 0.7, 0, false, 5);
   }
   vctx.putImageData(img, 0, 0);
 }
@@ -1281,7 +1346,7 @@ function drawHud(dt) {
   if (G.showHelp) {
     let y = u * 10.5; const s = u * 2.2;
     for (const [g, label, cost, col] of SHEET) {
-      const ok = !cost || P.mp >= cost, c = ok ? col : '#5b556a';
+      const ok = !cost || G.pow.surge || P.mp >= cost, c = ok ? col : '#5b556a';
       h.fillStyle = 'rgba(8,5,14,.55)'; h.fillRect(u * 1.4, y - u * 0.7, u * 19, s + u * 1.4);
       glyph(g, u * 2.4, y, s, c, Math.max(1.5, u * 0.35));
       text(label, u * 6.4, y + s / 2, u * 1.35, c);
@@ -1292,26 +1357,33 @@ function drawHud(dt) {
   }
   // top centre: floor + track
   text('FLOOR ' + G.floor + '/8', HW / 2, u * 2.4, u * 1.6, '#c9bfdc', 'center');
-  text('♪ ' + SONGS[Music.st.idx < 0 ? 0 : Music.st.idx].name, HW / 2, u * 4.8, u * 1.4, '#ffcf4a', 'center');
+  text('\u266a ' + SONGS[Music.st.idx < 0 ? 0 : Music.st.idx].name, HW / 2, u * 4.8, u * 1.4, '#ffcf4a', 'center');
+  if (!front) text(G.boss ? '\u2620 BOSS: ' + G.boss.t.name : (G.floor < 8 ? 'STAIRS UNSEALED' : ''), HW / 2, u * 7.2, u * 1.25, G.boss ? '#ff4fa3' : css(TEX.accent), 'center');
   // minimap
   const MW = G.MW, MH = G.MH, cs = Math.max(2, Math.floor(u * 0.62)), mx0 = HW - MW * cs - u * 2, my0 = u * 2;
   h.fillStyle = 'rgba(8,5,14,.6)'; h.fillRect(mx0 - 3, my0 - 3, MW * cs + 6, MH * cs + 6);
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
     const i = y * MW + x; if (!G.seen[i]) continue;
     const tl = G.map[i];
-    h.fillStyle = tl === EXIT ? css(TEX.accent) : tl ? 'rgba(160,150,180,.5)' : 'rgba(60,50,80,.9)';
+    h.fillStyle = tl === EXIT ? css(TEX.accent) : tl === LOCK ? '#ff4060' : tl ? 'rgba(160,150,180,.5)' : 'rgba(60,50,80,.9)';
     h.fillRect(mx0 + x * cs, my0 + y * cs, cs, cs);
   }
-  for (const it of G.items) if (G.seen[it.y * MW + it.x]) { h.fillStyle = it.kind === 'hp' ? '#ff6d86' : '#6aa0ff'; h.fillRect(mx0 + it.x * cs + cs * 0.25, my0 + it.y * cs + cs * 0.25, cs * 0.5, cs * 0.5); }
+  for (const it of G.items) if (G.seen[it.y * MW + it.x]) { h.fillStyle = it.kind === 'hp' ? '#ff6d86' : it.kind === 'mp' ? '#6aa0ff' : '#ffffff'; h.fillRect(mx0 + it.x * cs + cs * 0.25, my0 + it.y * cs + cs * 0.25, cs * 0.5, cs * 0.5); }
   for (const e of G.enemies) if (e.awake && G.seen[e.y * MW + e.x]) { h.fillStyle = e.t.boss ? '#ff4fa3' : '#ff4060'; h.fillRect(mx0 + e.x * cs, my0 + e.y * cs, cs, cs); }
   h.fillStyle = '#ffcf4a'; h.fillRect(mx0 + P.x * cs, my0 + P.y * cs, cs, cs);
   h.fillStyle = '#fff'; h.fillRect(mx0 + (P.x + 0.3 + DX[P.dir] * 0.5) * cs, my0 + (P.y + 0.3 + DY[P.dir] * 0.5) * cs, cs * 0.4, cs * 0.4);
   text('SCORE ' + G.stats.score, HW - u * 2, my0 + MH * cs + u * 2.4, u * 1.4, '#c9bfdc', 'right');
+  { let py = my0 + MH * cs + u * 5.4;
+    for (const k in G.pow) { const pw = POWERS[k], w = u * 16, x = HW - u * 2 - w;
+      h.fillStyle = 'rgba(8,5,14,.65)'; h.fillRect(x - u * 0.6, py - u * 1.5, w + u * 1.2, u * 3.6);
+      text(pw.name, x, py - u * 0.2, u * 1.35, pw.col); text(G.pow[k] + '', x + w, py - u * 0.2, u * 1.35, '#fff', 'right');
+      h.fillStyle = '#241a30'; h.fillRect(x, py + u * 1.1, w, u * 0.6); h.fillStyle = pw.col; h.fillRect(x, py + u * 1.1, w * clamp((G.pow[k] - frac) / pw.dur, 0, 1), u * 0.6);
+      py += u * 4.2; } }
 
   // ---- beat bar ----
   const cx = HW / 2, by = HH - u * 7, half = Math.min(HW * 0.36, u * 34);
   h.fillStyle = 'rgba(8,5,14,.6)'; h.fillRect(cx - half - u, by - u * 2.6, half * 2 + u * 2, u * 5.2);
-  const wgood = 0.25 * P.window, wperf = 0.12 * P.window, bw4 = half / 4;
+  const wgood = 0.25 * tw(), wperf = 0.12 * tw(), bw4 = half / 4;
   h.fillStyle = 'rgba(111,240,255,.16)'; h.fillRect(cx - wgood * bw4, by - u * 2.2, wgood * bw4 * 2, u * 4.4);
   h.fillStyle = 'rgba(255,207,74,.3)'; h.fillRect(cx - wperf * bw4, by - u * 2.2, wperf * bw4 * 2, u * 4.4);
   const b0 = Math.floor(bp);
@@ -1339,7 +1411,7 @@ function drawHud(dt) {
   // tutorial hint (first floor)
   if (G.floor === 1 && G.mode === 'play') {
     const hint = front ? (front.attack ? (front.attack.dir === 'G' ? 'Draw  ^  to GUARD' : 'Swipe the arrow\'s direction as the ring closes to PARRY — or draw ^ to GUARD')
-      : 'Swipe to attack — let go ON the beat for ×2 damage') : (G.exit && G.seen[G.exit.y * MW + G.exit.x] ? 'Walk into the glowing stairway to descend' : 'WASD move · Q/E turn · step on the beat to build GROOVE');
+      : 'Swipe to attack — let go ON the beat for ×2 damage') : (G.exit && !G.exit.locked ? 'Walk into the glowing stairway to descend' : G.combo > 3 ? 'Find and slay the floor boss to unseal the stairs' : 'WASD move \u00b7 Q/E turn \u00b7 step ON the beat \u2014 off-beat steps reset your GROOVE');
     h.font = `bold ${u * 1.45}px ${FONT}`; const tw = h.measureText(hint).width;
     h.fillStyle = 'rgba(8,5,14,.7)'; h.fillRect(cx - tw / 2 - u, by - u * 10.3, tw + u * 2, u * 2.6);
     text(hint, cx, by - u * 9, u * 1.45, '#fff', 'center');
@@ -1430,7 +1502,8 @@ function applySet() { Music.setVol(SET.mv, SET.sv); Music.setOffset(SET.off); $(
 function boot() { Music.init(); Music.resume(); applySet(); }
 $('startBtn').onclick = () => { boot(); newGame(); };
 $('helpBtn').onclick = () => { G.mode = 'help'; show('help'); };
-$('helpBack').onclick = () => { G.mode = 'title'; show('title'); };
+$('helpBack').onclick = () => { if (G.mode === 'pause') show('pause'); else { G.mode = 'title'; show('title'); } };
+$('helpBtn2').onclick = () => show('help');
 $('resumeBtn').onclick = unpause;
 $('againBtn').onclick = () => { boot(); newGame(); };
 $('quitBtn').onclick = () => { Music.resume(); newGame(); };
