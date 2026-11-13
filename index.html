@@ -75,6 +75,7 @@ input[type=range]{width:200px;accent-color:#ff4fa3}
       <li><kbd>W</kbd><kbd>S</kbd> <span>forward / back</span></li>
       <li><kbd>A</kbd><kbd>D</kbd> <span>strafe</span></li>
       <li><kbd>Q</kbd><kbd>E</kbd> <span>turn (or arrow keys)</span></li>
+      <li><span>Face to face with a foe you are <b>locked in</b>: no walking away, and you can only turn if another foe is at your side or back.</span></li>
       <li><kbd>Esc</kbd> <span>pause, jukebox, beat offset</span></li>
       <li><kbd>H</kbd> <span>toggle the gesture sheet</span></li></ul></div>
     <div class="card"><h3>BLADE &mdash; DRAG THE MOUSE</h3><ul>
@@ -1050,6 +1051,8 @@ function busy() { return P.mt < 1 || P.tt < 1; }
 function command(c) {
   if (G.mode !== 'play') return;
   if (busy()) { G.queued = c; return; }
+  const flanked = (c === 'tl' || c === 'tr') && [1, 2, 3].some(k => enemyAt(P.x + DX[(P.dir + k) % 4], P.y + DY[(P.dir + k) % 4]));
+  if (!flanked && enemyAt(P.x + DX[P.dir], P.y + DY[P.dir])) { Music.sfx.bump(); cam.shake = Math.max(cam.shake, 0.06); G.judge = { txt: 'LOCKED IN COMBAT', col: '#ff4060', t: 0, q: 0 }; return; }
   if (c === 'tl' || c === 'tr') {
     const d = c === 'tl' ? -1 : 1;
     P.dir = (P.dir + d + 4) % 4; P.af = P.ang; P.at = P.af + d * Math.PI / 2; P.tt = 0; return;
